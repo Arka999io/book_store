@@ -1,0 +1,158 @@
+openapi: 3.0.0
+info:
+  title: Книжный магазин API
+  version: 1.0.0
+  description: API для управления книгами, авторами, жанрами и продажами.
+
+servers:
+  - url: http://your-domain.com/api
+
+paths:
+  /popular-authors:
+    get:
+      summary: Получить самых популярных авторов за период
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Начальная дата периода
+        - name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Конечная дата периода
+        - name: genre_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: ID жанра (опционально)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+          description: Количество записей в ответе (по умолчанию = 5)
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+                    date_of_birth:
+                      type: string
+                      format: date
+                    total_sold:
+                      type: integer
+
+  /largest-sales:
+    get:
+      summary: Получить книги с самыми крупными чеками за период
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Начальная дата периода
+        - name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Конечная дата периода
+        - name: genre_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: ID жанра (опционально)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+          description: Количество записей в ответе (по умолчанию = 5)
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    title:
+                      type: string
+                    publication_year:
+                      type: integer
+                    genres:
+                      type: string
+                    authors:
+                      type: string
+                    sale_datetime:
+                      type: string
+                      format: date-time
+                    total_price:
+                      type: number
+
+  /books:
+    post:
+      summary: Добавить новую книгу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                publication_year:
+                  type: integer
+                author_ids:
+                  type: array
+                  items:
+                    type: integer
+                genre_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  title:
+                    type: string
+                  publication_year:
+                    type: integer
+                  genres:
+                    type: string
+                  authors:
+                    type: string
