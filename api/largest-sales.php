@@ -20,7 +20,6 @@ if (!$fromDateTime || !$toDateTime || $fromDateTime > $toDateTime) {
     exit;
 }
 
-// Проверка genre_id (если указан)
 if ($genreId !== null) {
     $checkGenreSql = "SELECT id FROM genres WHERE id = :genre_id";
     $checkStmt = $pdo->prepare($checkGenreSql);
@@ -30,6 +29,9 @@ if ($genreId !== null) {
         echo json_encode(['error' => "Жанр с ID $genreId не существует."]);
         exit;
     }
+} else {
+    echo json_encode(['error' => 'Укажите жанр.']);
+    exit;
 }
 
 // Проверка limit
@@ -38,22 +40,45 @@ if ($limit <= 0) {
     exit;
 }
 
-// SQL-запрос
-$sql = "SELECT b.id, b.title, b.publication_year, 
-               GROUP_CONCAT(DISTINCT g.name SEPARATOR ', ') AS genres, 
-               GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') AS authors,
-               s.sale_datetime, s.quantity * s.price_per_unit AS total_price
-        FROM books b
-        JOIN sales s ON b.id = s.book_id
-        LEFT JOIN book_genres bg ON b.id = bg.book_id
-        LEFT JOIN genres g ON bg.genre_id = g.id
-        LEFT JOIN book_authors ba ON b.id = ba.book_id
-        LEFT JOIN authors a ON ba.author_id = a.id
-        WHERE s.sale_datetime BETWEEN :from_date AND :to_date
-        AND (:genre_id IS NULL OR bg.genre_id = :genre_id)
-        GROUP BY b.id, s.sale_datetime
-        ORDER BY total_price DESC, s.sale_datetime DESC
-        LIMIT :limit";
+$sql = "WITH ranked_sales AS (
+    SELECT 
+        s.book_id,
+        s.sale_datetime,
+        s.quantity * s.price_per_unit AS total_price,
+        ROW_NUMBER() OVER (PARTITION BY s.book_id 
+                          ORDER BY 
+                            (s.quantity * s.price_per_unit) DESC, 
+                            s.sale_datetime DESC) AS rn
+    FROM sales s
+    WHERE s.sale_datetime BETWEEN :from_date AND :to_date
+),
+filtered_sales AS (
+    SELECT 
+        rs.book_id,
+        rs.sale_datetime,
+        rs.total_price
+    FROM ranked_sales rs
+    WHERE rs.rn = 1 -- Выбираем только самую крупную и свежую продажу
+)
+SELECT 
+    b.id, 
+    b.title, 
+    b.publication_year, 
+    GROUP_CONCAT(DISTINCT g.name SEPARATOR ', ') AS genres, 
+    GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') AS authors,
+    fs.sale_datetime, 
+    fs.total_price
+FROM filtered_sales fs
+JOIN books b ON fs.book_id = b.id
+LEFT JOIN book_genres bg ON b.id = bg.book_id
+LEFT JOIN genres g ON bg.genre_id = g.id
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+WHERE 
+    (:genre_id IS NULL OR bg.genre_id = :genre_id)
+GROUP BY b.id, fs.sale_datetime, fs.total_price
+ORDER BY fs.total_price DESC, fs.sale_datetime DESC
+LIMIT :limit";
 
 $stmt = $pdo->prepare($sql);
 $stmt->bindParam(':from_date', $fromDate);
@@ -65,3 +90,4 @@ $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
 $stmt->execute();
 
 echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC), JSON_UNESCAPED_UNICODE);
+?>
